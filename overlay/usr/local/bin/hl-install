@@ -1,0 +1,86 @@
+#!/bin/bash
+# Hyperland System installer (UEFI). WIPES THE CHOSEN DISK.
+# Layout: GPT, 1 GiB EFI (/boot, systemd-boot) + ext4 root.
+set -euo pipefail
+[[ $EUID -eq 0 ]] || exec sudo "$0" "$@"
+[[ -d /sys/firmware/efi ]] || { echo "UEFI boot required (disable CSM/legacy)." >&2; exit 1; }
+
+echo "=== Hyperland System installer ==="
+ping -c1 -W3 archlinux.org >/dev/null 2>&1 || {
+    echo "No internet. Connect first (Wi-Fi: iwctl, then 'station wlan0 connect <SSID>')." >&2; exit 1; }
+
+lsblk -dpno NAME,SIZE,MODEL | grep -Ev 'loop|sr[0-9]'
+read -rp "Disk to install to (e.g. /dev/nvme0n1): " DISK
+[[ -b $DISK ]] || { echo "Not a disk: $DISK" >&2; exit 1; }
+read -rp "Hostname [hyperland]: " HOST; HOST=${HOST:-hyperland}
+read -rp "Username: " USERNAME
+[[ $USERNAME =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo "Invalid username." >&2; exit 1; }
+while :; do
+    read -rsp "Password: " PASS; echo
+    read -rsp "Repeat:   " PASS2; echo
+    [[ -n $PASS && $PASS == "$PASS2" ]] && break
+    echo "Passwords empty or don't match."
+done
+read -rp "Timezone [UTC] (e.g. Europe/Berlin): " TZ; TZ=${TZ:-UTC}
+[[ -e /usr/share/zoneinfo/$TZ ]] || { echo "Unknown timezone $TZ" >&2; exit 1; }
+
+echo; echo "ALL DATA ON $DISK WILL BE ERASED."
+read -rp "Type the disk name again to confirm: " CONFIRM
+[[ $CONFIRM == "$DISK" ]] || { echo "Aborted."; exit 1; }
+
+part() { [[ $DISK =~ [0-9]$ ]] && echo "${DISK}p$1" || echo "${DISK}$1"; }
+ESP=$(part 1); ROOT=$(part 2)
+
+echo ":: Partitioning"
+umount -R /mnt 2>/dev/null || true
+wipefs -af "$DISK"
+sgdisk -Z "$DISK"
+sgdisk -n1:0:+1G -t1:ef00 -c1:EFI -n2:0:0 -t2:8304 -c2:root "$DISK"
+partprobe "$DISK"; udevadm settle
+mkfs.fat -F32 -n EFI "$ESP"
+mkfs.ext4 -F -L hyperland "$ROOT"
+mount "$ROOT" /mnt
+mount --mkdir -o umask=0077 "$ESP" /mnt/boot
+
+echo ":: Installing base system"
+pacstrap -K /mnt base linux linux-headers linux-firmware intel-ucode amd-ucode \
+    sudo networkmanager nano
+genfstab -U /mnt >> /mnt/etc/fstab
+
+mkdir -p /mnt/usr/share/hyperland /mnt/usr/local/bin
+cp -r /usr/share/hyperland/. /mnt/usr/share/hyperland/
+install -m755 /usr/local/bin/hl-configure /mnt/usr/local/bin/
+
+echo ":: Configuring system"
+arch-chroot /mnt hl-configure
+
+ROOT_UUID=$(blkid -s UUID -o value "$ROOT")
+arch-chroot /mnt /bin/bash -e <<CHROOT
+ln -sf /usr/share/zoneinfo/$TZ /etc/localtime
+hwclock --systohc
+sed -i 's/^#en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen
+locale-gen
+echo LANG=en_US.UTF-8 > /etc/locale.conf
+echo $HOST > /etc/hostname
+useradd -m -G wheel,video,audio,input,storage -s /bin/bash $USERNAME
+echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
+chmod 440 /etc/sudoers.d/10-wheel
+passwd -l root
+
+bootctl --esp-path=/boot install
+cat > /boot/loader/loader.conf <<EOL
+default hyperland.conf
+timeout 3
+editor no
+EOL
+cat > /boot/loader/entries/hyperland.conf <<EOL
+title   Hyperland System
+linux   /vmlinuz-linux
+initrd  /initramfs-linux.img
+options root=UUID=$ROOT_UUID rw nvidia_drm.modeset=1 nvidia_drm.fbdev=1 quiet
+EOL
+CHROOT
+printf '%s:%s\n' "$USERNAME" "$PASS" | arch-chroot /mnt chpasswd
+
+umount -R /mnt
+echo "=== Done! Remove the USB and reboot. Log in as $USERNAME on tty1. ==="

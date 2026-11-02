@@ -1,0 +1,8 @@
+#!/bin/bash
+# Live ISO only: create the passwordless 'live' desktop user.
+set -e
+sed -i '/^#\[multilib\]/,/^#Include/ s/^#//' /etc/pacman.conf
+if ! id live >/dev/null 2>&1; then
+    useradd -m -G wheel,video,audio,input,storage -s /bin/bash live
+    passwd -d live
+fi

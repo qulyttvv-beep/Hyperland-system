@@ -1,0 +1,11 @@
+[Unit]
+Description=Hyperland live user setup
+Before=getty@tty1.service systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/hl-live-setup
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

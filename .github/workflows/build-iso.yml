@@ -1,0 +1,21 @@
+name: Build ISO
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+      - name: Build in Arch container
+        run: |
+          docker run --rm --privileged -v "$PWD:/repo" -w /repo archlinux:latest \
+            bash -c 'pacman -Syu --noconfirm archiso && ./build.sh'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hyperland-system-iso
+          path: out/*.iso
+          compression-level: 0
+          retention-days: 7

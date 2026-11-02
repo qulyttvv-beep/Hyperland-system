@@ -1,0 +1,21 @@
+#!/bin/bash
+# Hyperland System: one-time per-user Wine prefix setup with DXVK + VKD3D
+# (DirectX 9/10/11/12 -> Vulkan on NVIDIA). Retries on next login if it fails.
+set -u
+export WINEPREFIX="${WINEPREFIX:-$HOME/.wine}"
+export WINEDEBUG=-all
+marker="$HOME/.local/state/hyperland/wine-ready"
+[[ -e $marker && ${1:-} != --force ]] && exit 0
+[[ $EUID -eq 0 ]] && { echo "Do not run Wine as root." >&2; exit 1; }
+
+note() { command -v notify-send >/dev/null && notify-send "Windows app support" "$1"; echo "$1"; }
+
+note "Setting up Wine (first run, this takes a few minutes)..."
+if ! wineboot -u >/dev/null 2>&1; then
+    note "wineboot failed - will retry next login."; exit 1
+fi
+if ! winetricks -q dxvk vkd3d vcrun2022 >/dev/null 2>&1; then
+    note "Could not install DXVK/VKD3D/VC++ (no internet?). Will retry next login."; exit 1
+fi
+mkdir -p "$(dirname "$marker")" && touch "$marker"
+note "Ready. Double-click any .exe or run: hl-run app.exe"

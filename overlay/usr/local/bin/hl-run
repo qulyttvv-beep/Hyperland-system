@@ -1,0 +1,21 @@
+#!/bin/bash
+# Hyperland System: run a Windows program (.exe/.msi/.lnk) with good defaults.
+#   hl-run setup.exe [args...]       HL_HUD=1 hl-run game.exe   (FPS overlay)
+set -euo pipefail
+if [[ $# -lt 1 ]]; then
+    echo "usage: hl-run <program.exe|installer.msi> [args...]" >&2; exit 1
+fi
+export WINEPREFIX="${WINEPREFIX:-$HOME/.wine}"
+hl-wine-setup || true
+
+target="$(realpath -- "$1")"; shift
+case "${target,,}" in
+    *.msi) cmd=(wine msiexec /i "$target" "$@") ;;
+    *.lnk) cmd=(wine start /unix "$target" "$@") ;;
+    *)     cmd=(wine "$target" "$@") ;;
+esac
+command -v gamemoderun >/dev/null && cmd=(gamemoderun "${cmd[@]}")
+[[ ${HL_HUD:-0} == 1 ]] && command -v mangohud >/dev/null && cmd=(mangohud "${cmd[@]}")
+
+cd "$(dirname -- "$target")"
+exec "${cmd[@]}"

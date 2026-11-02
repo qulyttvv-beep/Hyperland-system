@@ -1,0 +1,61 @@
+#!/bin/bash
+# Hyperland System: turn an Arch install into Hyperland System.
+# Installs NVIDIA + Wine + Hyprland packages and system config. Run as root.
+# Used by hl-install (inside the chroot) and by install-on-arch.sh.
+set -euo pipefail
+[[ $EUID -eq 0 ]] || { echo "Run as root." >&2; exit 1; }
+
+SHARE=/usr/share/hyperland
+OVERLAY="${HL_OVERLAY:-$SHARE/overlay}"
+PACKAGES="${HL_PACKAGES:-$SHARE/packages.txt}"
+in_chroot() { systemd-detect-virt -q --chroot; }
+
+echo ":: Enabling multilib (32-bit libs for Wine/Steam)"
+sed -i '/^#\[multilib\]/,/^#Include/ s/^#//' /etc/pacman.conf
+
+mapfile -t pkgs < <(sed 's/#.*//; s/[[:space:]]//g; /^$/d' "$PACKAGES")
+# nvidia-open only ships modules for the stock 'linux' kernel; use DKMS otherwise.
+extra_kernels=()
+for k in linux-lts linux-zen linux-hardened; do
+    pacman -Q "$k" >/dev/null 2>&1 && extra_kernels+=("$k-headers")
+done
+if (( ${#extra_kernels[@]} )); then
+    pkgs=("${pkgs[@]/#nvidia-open/nvidia-open-dkms}" "${extra_kernels[@]}")
+fi
+
+echo ":: Installing packages"
+pacman -Syu --needed --noconfirm "${pkgs[@]}"
+
+echo ":: Installing Hyperland config files"
+cp -rT --no-preserve=ownership "$OVERLAY" /
+chmod 755 /usr/local/bin/hl-*
+if [[ $(realpath "$OVERLAY") != "$SHARE/overlay" ]]; then
+    mkdir -p "$SHARE"; rm -rf "$SHARE/overlay"
+    cp -r "$OVERLAY" "$SHARE/overlay"; cp "$PACKAGES" "$SHARE/packages.txt"
+fi
+
+echo ":: Configuring initramfs for NVIDIA early KMS"
+cat > /etc/mkinitcpio.conf.d/hyperland-nvidia.conf <<'CONF'
+MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
+CONF
+# The kms hook would pull nouveau into the initramfs.
+sed -i '/^HOOKS=/ s/ kms//' /etc/mkinitcpio.conf
+mkinitcpio -P
+
+echo ":: Enabling services"
+systemctl enable nvidia-suspend.service nvidia-hibernate.service nvidia-resume.service
+systemctl enable NetworkManager.service
+in_chroot || systemctl restart systemd-binfmt.service || true
+
+# Give the invoking user the default desktop config if they don't have one.
+if [[ -n ${SUDO_USER:-} && $SUDO_USER != root ]]; then
+    home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    for f in .config/hypr/hyprland.conf .config/mimeapps.list; do
+        if [[ ! -e $home/$f ]]; then
+            install -D -m644 -o "$SUDO_USER" -g "$(id -gn "$SUDO_USER")" "/etc/skel/$f" "$home/$f"
+        fi
+    done
+    usermod -aG video,audio,input "$SUDO_USER"
+fi
+
+echo ":: Hyperland System configured. Reboot, log in on tty1 and Hyprland starts."

@@ -1,0 +1,88 @@
+# Hyperland System - desktop package set (official Arch repos, multilib enabled)
+# Used by build.sh (live ISO) and hl-configure (installed systems).
+
+# --- NVIDIA (Turing / GTX 16xx / RTX 20xx and newer) ---
+nvidia-open
+nvidia-utils
+lib32-nvidia-utils
+nvidia-settings
+nvidia-prime
+opencl-nvidia
+lib32-opencl-nvidia
+egl-wayland
+libva-nvidia-driver
+
+# --- Vulkan / Mesa (needed for DXVK/VKD3D, and hybrid Intel/AMD laptops) ---
+vulkan-icd-loader
+lib32-vulkan-icd-loader
+vulkan-tools
+mesa
+lib32-mesa
+vulkan-intel
+lib32-vulkan-intel
+vulkan-radeon
+lib32-vulkan-radeon
+
+# --- Windows .exe support ---
+wine
+wine-mono
+wine-gecko
+winetricks
+cabextract
+unzip
+p7zip
+zenity
+steam
+lutris
+gamemode
+lib32-gamemode
+mangohud
+lib32-mangohud
+gamescope
+flatpak
+
+# --- Hyprland desktop ---
+hyprland
+xdg-desktop-portal-hyprland
+xdg-desktop-portal-gtk
+hyprpolkitagent
+waybar
+wofi
+kitty
+mako
+libnotify
+thunar
+gvfs
+tumbler
+grim
+slurp
+wl-clipboard
+brightnessctl
+pavucontrol
+qt5-wayland
+qt6-wayland
+xdg-utils
+xdg-user-dirs
+networkmanager
+network-manager-applet
+firefox
+
+# --- Audio ---
+pipewire
+pipewire-pulse
+pipewire-alsa
+wireplumber
+lib32-pipewire
+
+# --- Fonts ---
+noto-fonts
+noto-fonts-emoji
+ttf-dejavu
+ttf-liberation
+otf-font-awesome
+
+# --- Tools ---
+sudo
+git
+base-devel
+htop

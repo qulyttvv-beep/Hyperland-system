@@ -1,0 +1,6 @@
+[Default Applications]
+application/x-ms-dos-executable=hl-run.desktop
+application/x-msdownload=hl-run.desktop
+application/vnd.microsoft.portable-executable=hl-run.desktop
+application/x-msi=hl-run.desktop
+application/x-ms-shortcut=hl-run.desktop

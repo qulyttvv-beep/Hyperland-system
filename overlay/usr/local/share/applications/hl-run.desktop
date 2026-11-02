@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Run Windows Program
+Comment=Run a Windows .exe/.msi with Wine (DXVK + GameMode)
+Exec=hl-run %f
+Icon=wine
+Terminal=false
+NoDisplay=true
+MimeType=application/x-ms-dos-executable;application/x-msdownload;application/vnd.microsoft.portable-executable;application/x-msi;application/x-ms-shortcut;
+Categories=System;Emulator;
